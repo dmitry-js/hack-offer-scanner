@@ -8,3 +8,5 @@ output/*.json
 .env.local
 .env.*
 !.env.example
+
+.idea/
