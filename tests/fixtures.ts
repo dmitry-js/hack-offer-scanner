@@ -70,7 +70,7 @@ export function vacancy(id: string, overrides: Partial<Vacancy> = {}): Vacancy {
     skills: ["React", "TypeScript"],
     language: null,
     sourceRating: null,
-    description: "React TypeScript frontend architecture and complex UI.",
+    description: "React TypeScript frontend architecture and complex UI. You will build and maintain customer-facing web products, collaborate with product managers and designers, clarify requirements, deliver reliable features, investigate defects, document implementation details, and support releases across the product lifecycle.",
     createdAt: "2026-08-17T12:00:00+03:00",
     slug: `senior-frontend-${id}`,
     rawId: null,

@@ -16,6 +16,8 @@ export type FilterResult = {
   rejected: RejectedVacancy[];
 };
 
+const DESCRIPTION_ONLY_DUPLICATE_THRESHOLD = 0.95;
+
 const FRONTEND_TERMS = [
   "frontend",
   "front-end",
@@ -97,8 +99,22 @@ function fullVacancyText(vacancy: Vacancy): string {
   ].join("\n"));
 }
 
-function hasReact(text: string): boolean {
+function hasReactOrNext(text: string): boolean {
   return containsAny(text, ["react", "react.js", "reactjs", "next.js", "nextjs"]);
+}
+
+function hasFramework(text: string, framework: "angular" | "nuxt" | "vue"): boolean {
+  const normalized = normalizeText(text);
+  const suffix = "(?:(?:\\.?js)|(?:[\\s._-]*v?\\d+(?:\\.\\d+)*))?";
+  return new RegExp(`(^|[^a-z0-9])${framework}${suffix}($|[^a-z0-9])`, "i").test(normalized);
+}
+
+function hasAngularFramework(text: string): boolean {
+  return hasFramework(text, "angular");
+}
+
+function hasVueOrNuxtFramework(text: string): boolean {
+  return hasFramework(text, "vue") || hasFramework(text, "nuxt");
 }
 
 /** Rejects only inexpensive, unmistakable mismatches before detail requests. */
@@ -106,14 +122,14 @@ export function cheapPreFilter(vacancy: ListVacancy): string | null {
   const title = normalizeText(vacancy.title);
   const text = listVacancyText(vacancy);
   const frontendTitle = containsAny(title, FRONTEND_TERMS);
-  const react = hasReact(text);
+  const react = hasReactOrNext(text);
 
   if (containsAny(title, IRRELEVANT_TITLE_TERMS)) return "clearly irrelevant title";
   if (containsAny(title, ["backend", "back-end", "back end"]) && !frontendTitle) {
     return "backend-primary title";
   }
-  if (containsTerm(title, "angular") && !react) return "Angular-only stack";
-  if (containsAny(title, ["vue", "vue.js", "vuejs", "nuxt", "nuxt.js"]) && !react) {
+  if (hasAngularFramework(text) && !react) return "Angular-only stack";
+  if (hasVueOrNuxtFramework(text) && !react) {
     return "Vue/Nuxt-only stack";
   }
   return null;
@@ -141,7 +157,7 @@ export function scoreListVacancyForDetail(vacancy: ListVacancy): number {
   const text = listVacancyText(vacancy);
   let score = 0;
   if (containsAny(title, FRONTEND_TERMS)) score += 14;
-  if (hasReact(text)) score += 12;
+  if (hasReactOrNext(text)) score += 12;
   if (containsAny(text, ["next.js", "nextjs"])) score += 8;
   if (containsTerm(text, "typescript")) score += 6;
   if (containsAny(title, ["senior", "senior+", "старш"])) score += 20;
@@ -223,21 +239,17 @@ function seniorityRejectionReason(vacancy: Vacancy, title: string, text: string)
 
 function frontendPrimaryRejectionReason(vacancy: Vacancy, title: string, text: string): string | null {
   const specialization = normalizeText(vacancy.specialization ?? "");
-  const skills = normalizeText(vacancy.skills.join(" "));
   const frontendTitle = containsAny(title, FRONTEND_TERMS);
   const frontendStructured = containsAny(specialization, ["frontend", "front-end", "фронтенд"]);
-  const react = hasReact(text);
+  const react = hasReactOrNext(text);
 
   if (containsAny(title, IRRELEVANT_TITLE_TERMS)) return "clearly irrelevant title";
   if (containsAny(title, ["backend", "back-end", "back end"]) && !frontendTitle) {
     return "backend-primary title";
   }
 
-  const angularSpecific = containsTerm(title, "angular") || containsTerm(skills, "angular");
-  if (angularSpecific && !react) return "Angular-only stack";
-  const vueSpecific = containsAny(title, ["vue", "vue.js", "vuejs", "nuxt", "nuxt.js"])
-    || containsAny(skills, ["vue", "vue.js", "vuejs", "nuxt", "nuxt.js"]);
-  if (vueSpecific && !react) return "Vue/Nuxt-only stack";
+  if (hasAngularFramework(text) && !react) return "Angular-only stack";
+  if (hasVueOrNuxtFramework(text) && !react) return "Vue/Nuxt-only stack";
 
   if (!frontendTitle && !frontendStructured && !(react && /frontend|front-end|фронтенд|интерфейс/.test(text))) {
     return "frontend is not clearly a primary responsibility";
@@ -269,6 +281,16 @@ function workFormatRejectionReason(vacancy: Vacancy): string | null {
   return officeOnly ? "office-only work format" : null;
 }
 
+function contentQualityRejectionReason(vacancy: Vacancy): string | null {
+  const meaningfulLength = normalizeText(vacancy.description)
+    .replace(/\b(?:https?:\/\/|www\.)[^\s<>()]+/giu, " ")
+    .replace(/[^\p{L}\p{N}]+/gu, "")
+    .length;
+  return meaningfulLength < 200 && vacancy.skills.length <= 2
+    ? "insufficient vacancy details for market analysis"
+    : null;
+}
+
 function scoreVacancy(vacancy: Vacancy): Vacancy {
   const title = normalizeText(vacancy.title);
   const text = fullVacancyText(vacancy);
@@ -282,7 +304,7 @@ function scoreVacancy(vacancy: Vacancy): Vacancy {
 
   if (containsAny(title, FRONTEND_TERMS)) add(14, "frontend title");
   if (containsAny(normalizeText(vacancy.specialization ?? ""), ["frontend", "front-end", "фронтенд"])) add(8, "frontend specialization");
-  if (hasReact(text)) add(12, "React/Next.js");
+  if (hasReactOrNext(text)) add(12, "React/Next.js");
   if (containsAny(text, ["next.js", "nextjs"])) add(8, "Next.js");
   if (containsTerm(text, "typescript")) add(7, "TypeScript");
   if (containsTerm(text, "javascript")) add(2, "JavaScript");
@@ -303,8 +325,8 @@ function scoreVacancy(vacancy: Vacancy): Vacancy {
   if (ratingBonus > 0) add(ratingBonus, "Hack Offer rating");
   if (containsAny(title, ["fullstack", "full-stack", "full stack"])) add(-10, "full-stack title");
   if (containsTerm(title, "middle") || containsTerm(grade, "middle")) add(-5, "Middle grade/title");
-  if (containsTerm(text, "angular") && !hasReact(text)) add(-10, "Angular without React");
-  if (containsAny(text, ["vue", "vue.js", "vuejs", "nuxt"]) && !hasReact(text)) add(-10, "Vue/Nuxt without React");
+  if (hasAngularFramework(text) && !hasReactOrNext(text)) add(-10, "Angular without React");
+  if (hasVueOrNuxtFramework(text) && !hasReactOrNext(text)) add(-10, "Vue/Nuxt without React");
 
   return {
     ...vacancy,
@@ -378,8 +400,12 @@ function isNearDuplicate(left: Vacancy, right: Vacancy): boolean {
   const leftCompany = normalizedCompany(left.company);
   const rightCompany = normalizedCompany(right.company);
   if (!leftCompany || leftCompany !== rightCompany) return false;
-  return tokenJaccardSimilarity(left.title, right.title) >= NEAR_DUPLICATE_TITLE_THRESHOLD
-    && tokenJaccardSimilarity(left.description, right.description) >= NEAR_DUPLICATE_DESCRIPTION_THRESHOLD;
+  const descriptionSimilarity = tokenJaccardSimilarity(left.description, right.description);
+  return descriptionSimilarity >= DESCRIPTION_ONLY_DUPLICATE_THRESHOLD
+    || (
+      tokenJaccardSimilarity(left.title, right.title) >= NEAR_DUPLICATE_TITLE_THRESHOLD
+      && descriptionSimilarity >= NEAR_DUPLICATE_DESCRIPTION_THRESHOLD
+    );
 }
 
 function removeNearDuplicates(ranked: readonly Vacancy[]): FilterResult {
@@ -409,7 +435,8 @@ export function filterAndRank(vacancies: readonly Vacancy[]): FilterResult {
     const text = fullVacancyText(vacancy);
     const reason = seniorityRejectionReason(vacancy, title, text)
       ?? frontendPrimaryRejectionReason(vacancy, title, text)
-      ?? workFormatRejectionReason(vacancy);
+      ?? workFormatRejectionReason(vacancy)
+      ?? contentQualityRejectionReason(vacancy);
     if (reason) {
       rejected.push({ id: vacancy.id, title: vacancy.title, reason });
       continue;
