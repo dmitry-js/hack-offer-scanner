@@ -1,0 +1,10 @@
+node_modules/
+dist/
+output/*.md
+output/*.json
+.DS_Store
+
+.env
+.env.local
+.env.*
+!.env.example
