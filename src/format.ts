@@ -48,7 +48,8 @@ export function formatVacanciesMarkdown(vacancies: readonly Vacancy[]): string {
 
 Source: ${sourceLabel(vacancy)}
 Компания: ${vacancy.company ?? "not specified"}
-Рейтинг: ${vacancy.relevanceScore}/100
+Релевантность: ${vacancy.relevanceScore}/100
+Рейтинг Hack Offer: ${vacancy.sourceRating === null ? "not specified" : `${vacancy.sourceRating}/100`}
 URL: ${url}
 Date: ${formatDate(vacancy.postedAt ?? vacancy.createdAt)}
 Salary: ${formatSalary(vacancy)}

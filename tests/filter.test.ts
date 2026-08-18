@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterAndRank, selectDiverseVacancies } from "../src/filter.js";
+import {
+  filterAndRank,
+  scoreListVacancyForDetail,
+  selectDiverseVacancies,
+  sourceRatingBonus,
+} from "../src/filter.js";
 import { vacancy } from "./fixtures.js";
 
 test("keeps a relevant Senior React vacancy and exposes debug score signals", () => {
@@ -8,6 +13,36 @@ test("keeps a relevant Senior React vacancy and exposes debug score signals", ()
   assert.deepEqual(result.accepted.map((item) => item.id), ["good"]);
   assert.ok((result.accepted[0]?.relevanceScore ?? 0) >= 35);
   assert.ok(result.accepted[0]?.matchedSignals.some((signal) => signal.includes("React")));
+});
+
+test("maps Hack Offer ratings to increasing bonuses in both scoring stages", () => {
+  const cases = [
+    [40, 0],
+    [50, 1],
+    [70, 3],
+    [80, 4],
+    [90, 5],
+  ] as const;
+  assert.equal(sourceRatingBonus(null), 0);
+  assert.equal(sourceRatingBonus(Number.NaN), 0);
+  assert.equal(sourceRatingBonus(Number.POSITIVE_INFINITY), 0);
+  assert.equal(sourceRatingBonus("90"), 0);
+
+  const listBaseline = scoreListVacancyForDetail(vacancy("list-baseline", { sourceRating: null }));
+  const finalBaseline = filterAndRank([vacancy("final-baseline", { sourceRating: null })])
+    .accepted[0]?.relevanceScore;
+  assert.notEqual(finalBaseline, undefined);
+
+  for (const [rating, expectedBonus] of cases) {
+    assert.equal(sourceRatingBonus(rating), expectedBonus);
+    assert.equal(
+      scoreListVacancyForDetail(vacancy(`list-${rating}`, { sourceRating: rating })) - listBaseline,
+      expectedBonus,
+    );
+    const finalScore = filterAndRank([vacancy(`final-${rating}`, { sourceRating: rating })])
+      .accepted[0]?.relevanceScore;
+    assert.equal((finalScore as number) - (finalBaseline as number), expectedBonus);
+  }
 });
 
 test("rejects an ordinary weak Middle vacancy", () => {

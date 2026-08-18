@@ -126,6 +126,16 @@ type DetailPriority = {
   index: number;
 };
 
+export function sourceRatingBonus(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  if (value >= 90) return 5;
+  if (value >= 80) return 4;
+  if (value >= 70) return 3;
+  if (value >= 60) return 2;
+  if (value >= 50) return 1;
+  return 0;
+}
+
 export function scoreListVacancyForDetail(vacancy: ListVacancy): number {
   const title = normalizeText(vacancy.title);
   const text = listVacancyText(vacancy);
@@ -140,9 +150,7 @@ export function scoreListVacancyForDetail(vacancy: ListVacancy): number {
   if (containsTerm(normalizeText(vacancy.grade ?? ""), "middle")) score += 2;
   if (containsAny(normalizeText(vacancy.remote ?? ""), ["remote", "удален", "дистанцион"])) score += 5;
   if (containsAny(normalizeText(vacancy.remote ?? ""), ["hybrid", "гибрид"])) score += 3;
-  if (vacancy.sourceRating !== null && vacancy.sourceRating > 0) {
-    score += Math.min(5, Math.round(vacancy.sourceRating));
-  }
+  score += sourceRatingBonus(vacancy.sourceRating);
   if (containsAny(title, ["fullstack", "full-stack", "full stack"])) score -= 8;
   return score;
 }
@@ -291,9 +299,8 @@ function scoreVacancy(vacancy: Vacancy): Vacancy {
   if (/code review|ревью код/.test(text)) add(2, "code review");
   if (containsAny(normalizeText(vacancy.remote ?? ""), ["remote", "удален", "дистанцион"])) add(5, "remote");
   else if (containsAny(normalizeText(vacancy.remote ?? ""), ["hybrid", "гибрид"])) add(3, "hybrid");
-  if (vacancy.sourceRating !== null && vacancy.sourceRating > 0) {
-    add(Math.min(5, Math.round(vacancy.sourceRating)), "Hack Offer rating");
-  }
+  const ratingBonus = sourceRatingBonus(vacancy.sourceRating);
+  if (ratingBonus > 0) add(ratingBonus, "Hack Offer rating");
   if (containsAny(title, ["fullstack", "full-stack", "full stack"])) add(-10, "full-stack title");
   if (containsTerm(title, "middle") || containsTerm(grade, "middle")) add(-5, "Middle grade/title");
   if (containsTerm(text, "angular") && !hasReact(text)) add(-10, "Angular without React");

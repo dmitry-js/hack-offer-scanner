@@ -13,6 +13,7 @@ test("formats exact titles, zero-padded numbering, source metadata, and missing 
       employment: null,
       remote: "hybrid",
       relevanceScore: 70,
+      sourceRating: 80,
     }),
     vacancy("2", { title: "Senior Frontend Engineer" }),
   ]);
@@ -21,7 +22,9 @@ test("formats exact titles, zero-padded numbering, source metadata, and missing 
   assert.match(result, /^# 02\. Senior Frontend Engineer/m);
   assert.match(result, /Source: \[Telegram\] job_react/);
   assert.match(result, /Компания: not specified/);
-  assert.match(result, /Рейтинг: 70\/100/);
+  assert.match(result, /Релевантность: 70\/100/);
+  assert.match(result, /Рейтинг Hack Offer: 80\/100/);
+  assert.match(result, /Рейтинг Hack Offer: not specified/);
   assert.match(result, /Salary: not specified/);
   assert.match(result, /Оформление: not specified/);
   assert.match(result, /Формат работы: hybrid/);
